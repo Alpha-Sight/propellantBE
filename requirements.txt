@@ -7,3 +7,4 @@ supabase>=0.1.10
 pytest>=6.2.5
 pytest-asyncio>=0.16.0
 openai~=1.55.1
+cosmpy>=0.9.2  # Add this for XION interactions

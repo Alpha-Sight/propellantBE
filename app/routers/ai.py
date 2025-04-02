@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 import httpx
 import os
+import logging
 from app.models.requests import CVAnalysisRequest
 from app.services.input_service import InputService
 from app.services.rules_service import RulesService
@@ -11,6 +12,9 @@ from app.auth.blockchainAuth import (
     BlockchainCredentials,
     deduct_cv_credit
 )
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 # Determine if we're in development mode
 DEV_MODE = os.getenv("ENVIRONMENT", "development") == "development"
@@ -30,8 +34,7 @@ async def cv_analysis(
     """
     try:
         # Log the transaction for auditing
-        print(f"Processing CV analysis request with transaction: {blockchain_auth.transaction_hash}")
-        print(f"User public key: {blockchain_auth.public_key}")
+        logger.info(f"Processing CV analysis request for user: {blockchain_auth.user_address}")
         
         # Validate input
         validated_data = InputService.validate_input(cv_data)
@@ -39,29 +42,31 @@ async def cv_analysis(
         # Get rules
         rules = RulesService.get_rules()
         
-        # Process with AI service
-        cv_analysis = await AIService.rewrite_content(validated_data, rules)
+        # Process with AI service - returns a dict, not an object
+        cv_analysis_dict = await AIService.rewrite_content(validated_data, rules)
         
-        # Format the response
+        # Format the response - use dict access instead of attribute access
         formatted_response = {
-            "work_experience": [exp.model_dump() for exp in cv_analysis.work_experience],
-            "skills": cv_analysis.skills,
-            "professional_summary": cv_analysis.professional_summary,
-            "transaction_hash": blockchain_auth.transaction_hash,  # Include for reference
+            "experiences": cv_analysis_dict.get("experiences", []),
+            "skills": cv_analysis_dict.get("skills", []),
+            "professionalSummary": cv_analysis_dict.get("professionalSummary", "")
         }
         
         # CV generation successful, now deduct a credit
         deduction_result = await deduct_cv_credit(
-            blockchain_auth.public_key,
-            blockchain_auth.session_token
+            blockchain_auth.user_address,
+            blockchain_auth.secure_token
         )
         
+        if not deduction_result.get("success", False):
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Failed to deduct credit: {deduction_result.get('error', 'Unknown error')}"
+            )
+        
         # Add credit deduction information to the response
-        formatted_response["credit_deduction"] = {
-            "success": deduction_result.get("success", False),
-            "remaining_credits": deduction_result.get("remaining_credits", 0),
-            "transaction_hash": deduction_result.get("transaction_hash", "")
-        }
+        formatted_response["remaining_credits"] = deduction_result.get("credits_remaining", 0)
+        formatted_response["transaction_hash"] = deduction_result.get("tx_hash", "")
         
         # Return the formatted response
         return formatted_response
@@ -73,4 +78,5 @@ async def cv_analysis(
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         # Add general exception handling
+        logger.error(f"Error processing request: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
