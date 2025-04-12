@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends
 import httpx
 import os
 import logging
-from app.models.requests import CVAnalysisRequest
+from app.models.requests import CVAnalysisRequest, CVAnalysis
 from app.services.input_service import InputService
 from app.services.rules_service import RulesService
 from app.services.ai_service import AIService
@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 # Determine if we're in development mode
 DEV_MODE = os.getenv("ENVIRONMENT", "development") == "development"
 
+# Initialize FastAPI router
 router = APIRouter()
 
 @router.post("/cv-analysis")
@@ -38,21 +39,21 @@ async def cv_analysis(
         
         # Validate input
         validated_data = InputService.validate_input(cv_data)
-        
-        # Get rules
+
+        # Get rules for processing
         rules = RulesService.get_rules()
+
+        # Process with AI service - returns a CVAnalysis model
+        cv_analysis_result = await AIService.rewrite_content(validated_data, rules)
         
-        # Process with AI service - returns a dict, not an object
-        cv_analysis_dict = await AIService.rewrite_content(validated_data, rules)
-        
-        # Format the response - use dict access instead of attribute access
-        formatted_response = {
-            "experiences": cv_analysis_dict.get("experiences", []),
-            "skills": cv_analysis_dict.get("skills", []),
-            "professionalSummary": cv_analysis_dict.get("professionalSummary", "")
-        }
-        
-        # CV generation successful, now deduct a credit
+        # Ensure the response matches the expected CVAnalysis format
+        formatted_response = CVAnalysis(
+            experiences=cv_analysis_result.get("experiences", []),
+            skills=cv_analysis_result.get("skills", []),
+            professionalSummary=cv_analysis_result.get("professionalSummary", "")
+        )
+
+        # Deduct a credit for the CV generation
         deduction_result = await deduct_cv_credit(
             blockchain_auth.user_address,
             blockchain_auth.secure_token
@@ -65,13 +66,15 @@ async def cv_analysis(
             )
         
         # Add credit deduction information to the response
-        formatted_response["remaining_credits"] = deduction_result.get("credits_remaining", 0)
-        formatted_response["transaction_hash"] = deduction_result.get("tx_hash", "")
-        
-        # Return the formatted response
-        return formatted_response
-        
+        response_with_credits = formatted_response.dict()
+        # response_with_credits["remaining_credits"] = deduction_result.get("credits_remaining", 0)
+        # response_with_credits["transaction_hash"] = deduction_result.get("tx_hash", "")
+
+        # Return the final response
+        return response_with_credits
+
     except httpx.HTTPStatusError as e:
+        # Handle HTTP errors from external calls
         raise HTTPException(status_code=e.response.status_code, detail=str(e))
     except ValueError as e:
         # Handle validation errors
