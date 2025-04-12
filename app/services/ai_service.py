@@ -6,7 +6,7 @@ from typing import List, Optional, Dict, Any
 from pydantic import ValidationError
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
-from app.models.requests import CVAnalysisRequest, CVAnalysis
+from app.models.requests import CVAnalysisRequest, CVAnalysis, Skill, Experiences
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -67,13 +67,9 @@ class AIService:
                                 "required": ["id", "company", "position", "startDate", "endDate", "current", "location", "description", "achievements"]
                             }
                         },
-                        "skills": {
-                            "type": "array",
-                            "items": {"type": "string"}  # Skills as a list of strings
-                        },
                         "professionalSummary": {"type": "string"}
                     },
-                    "required": ["experiences", "skills", "professionalSummary"]
+                    "required": ["experiences", "professionalSummary"]
                 }
             }
         }
@@ -84,8 +80,9 @@ class AIService:
         Send request to UnifyAI and get a structured response
         """
         utc_time = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
-        logger.info(f"Rewrite content process started at {utc_time} UTC")
-        prompt = cls.generate_prompt(req, rules)  # Pass rules to generate_prompt
+        user_login = "praiseunite"
+        logger.info(f"Rewrite content process started at {utc_time} UTC for user: {user_login}")
+        prompt = cls.generate_prompt(req, rules)
         tools = [cls.edit_cv()]
         
         try:
@@ -100,7 +97,7 @@ class AIService:
             # Process tool calls from the response
             tool_calls = response.choices[0].message.tool_calls
             if not tool_calls:
-                logger.warning("No tool calls received from AI model")
+                logger.warning(f"No tool calls received from AI model at {utc_time} UTC for user: {user_login}")
                 return cls.create_fallback_response(req)
                 
             # Process the first tool call (should be provide_edited_cv)
@@ -110,36 +107,75 @@ class AIService:
             # Log the raw response for debugging
             logger.debug(f"AI response: {json.dumps(function_args)}")
             
-            # Try different approaches to handle the response
+            # Process the AI's experiences
+            ai_experiences = function_args.get("experiences", [])
+            
+            # Fix any issues with IDs and achievements in experiences
+            fixed_experiences = cls.process_experiences(ai_experiences, req.experiences)
+            
+            # Create response with enhanced experiences and original skills
+            data = {
+                "experiences": fixed_experiences,
+                "skills": [skill.model_dump() for skill in req.skills],
+                "professionalSummary": function_args.get("professionalSummary", "")
+            }
+            
+            # Create a CVAnalysis object and validate it
             try:
-                # Approach 1: Direct parsing with Pydantic
-                try:
-                    parsed_response = CVAnalysis(**function_args)
-                    logger.info("Successfully parsed AI response directly")
-                    return parsed_response.model_dump()
-                except ValidationError as e1:
-                    logger.warning(f"Direct parsing failed: {str(e1)}")
-                    
-                # Approach 2: Transform the response and try again
-                transformed_data = cls.transform_ai_response(function_args)
-                try:
-                    parsed_response = CVAnalysis(**transformed_data)
-                    logger.info("Successfully parsed transformed AI response")
-                    return parsed_response.model_dump()
-                except ValidationError as e2:
-                    logger.warning(f"Transformed parsing failed: {str(e2)}")
-                    
-                # Approach 3: Manually construct a valid response
-                logger.warning("Both parsing approaches failed, constructing manual response")
-                return cls.create_manual_response(function_args, req)
+                # First convert skills back to Skill objects
+                skills_objects = [Skill(**skill) for skill in data["skills"]]
                 
-            except Exception as e:
-                logger.error(f"Failed to process AI response: {str(e)}")
+                # Create experiences objects
+                experience_objects = []
+                for exp in data["experiences"]:
+                    experience_objects.append(Experiences(**exp))
+                
+                # Create and validate the final response
+                response_model = CVAnalysis(
+                    experiences=experience_objects,
+                    skills=skills_objects,
+                    professionalSummary=data["professionalSummary"]
+                )
+                
+                curr_time = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+                logger.info(f"Successfully enhanced CV at {curr_time} UTC for user: {user_login}")
+                
+                return response_model.model_dump()
+                
+            except ValidationError as e:
+                logger.error(f"Validation error: {str(e)}")
                 return cls.create_fallback_response(req)
                 
         except Exception as e:
-            logger.error(f"Error communicating with UnifyAI: {str(e)}")
+            err_time = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+            logger.error(f"Error communicating with UnifyAI: {str(e)} at {err_time} UTC for user: {user_login}")
             return cls.create_fallback_response(req)
+    
+    @staticmethod
+    def process_experiences(ai_experiences, original_experiences):
+        """Process and fix experiences from AI"""
+        fixed_experiences = []
+        original_exp_map = {exp.id: exp for exp in original_experiences}
+        
+        # Process each experience from AI
+        for ai_exp in ai_experiences:
+            # Match with original experience by company and position
+            for orig_id, orig_exp in original_exp_map.items():
+                if (ai_exp.get("company") == orig_exp.company and 
+                    ai_exp.get("position") == orig_exp.position):
+                    
+                    # Set the correct ID
+                    ai_exp["id"] = orig_id
+                    
+                    # Ensure achievements exist
+                    if not ai_exp.get("achievements") or len(ai_exp.get("achievements", [])) == 0:
+                        ai_exp["achievements"] = [ach for ach in orig_exp.achievements]
+                        
+                    break
+            
+            fixed_experiences.append(ai_exp)
+            
+        return fixed_experiences
     
     @staticmethod
     def generate_prompt(req: CVAnalysisRequest, rules: dict) -> str:
@@ -152,10 +188,9 @@ class AIService:
         # Format experiences
         experiences_text = ""
         for exp in req.experiences:
-            # Use startDate, endDate, and current directly
             period_text = f"{exp.startDate} - {exp.endDate} (Current: {exp.current})"
             experiences_text += (
-                f"{exp.position}\n{exp.company}\n{period_text}\n{exp.location}\n"
+                f"ID: {exp.id}\n{exp.position}\n{exp.company}\n{period_text}\n{exp.location}\n"
                 f"Description: {exp.description}\n"
             )
             for achievement in exp.achievements:
@@ -173,32 +208,82 @@ class AIService:
             f"CANDIDATE SKILLS:\n{skills_text}\n\n"
             f"EXISTING RESUME:\n{experiences_text}\n\n"
             f"INSTRUCTIONS:\n"
-            f"Please enhance the EXISTING RESUME content to better align with the JOB DESCRIPTION. "
-            f"Do not add new job titles, roles, or duties that do not exist in the original resume. "
-            f"Your task is to improve the language, add relevant keywords, and adjust the format of the work experience, descriptions, and skills "
-            f"to better reflect the job description, while keeping the original content intact.\n\n"
+            f"Please enhance ONLY the work experience descriptions and achievements to better align with the JOB DESCRIPTION. "
+            f"Keep the exact same structure including IDs, company names, position titles, dates, and locations.\n\n"
+            f"VERY IMPORTANT:\n"
+            f"1. The ID field must be preserved exactly as shown in the original (like '101' or '102')\n"
+            f"2. Do NOT add new job positions or companies\n"
+            f"3. Do NOT modify the company name, position title, dates, or location\n"
+            f"4. Do NOT return any skills in your response - I will handle skills separately\n"
+            f"5. You MUST include all the achievements for each position\n\n"
             f"RULES:\n{rules_text}\n\n"
-            f"Use the provide_edited_cv function to return your enhanced resume in a structured format with sections for "
-            f"experiences (with company name, job title, startDate,  endDate, current, location, descriptions, and achievements), skills, and a professionalSummary."
+            f"Return only the enhanced experiences and a professional summary. DO NOT return any skill information."
         )
         return prompt
 
     @staticmethod
-    def transform_ai_response(ai_response: Dict[str, Any]) -> Dict[str, Any]:
-        """Transform AI response to match our model structure"""
-        transformed = {
-            "experiences": ai_response.get("experiences", []),
-            "skills": [skill["name"] for skill in ai_response.get("skills", [])],  # Extract skill names
-            "professionalSummary": ai_response.get("professionalSummary", "Professional Summary Not Available")
-        }
-        return transformed
-    
+    def create_manual_response(function_args: Dict[str, Any], req: CVAnalysisRequest) -> Dict[str, Any]:
+        """Create a manually constructed response when parse validation fails"""
+        utc_time = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+        user_login = "praiseunite"
+        logger.info(f"Creating manual response at {utc_time} UTC for user: {user_login}")
+        
+        # Get AI experiences and fix them
+        ai_experiences = function_args.get("experiences", [])
+        fixed_experiences = AIService.process_experiences(ai_experiences, req.experiences)
+        
+        # Create Skill and Experience objects
+        skills_objects = req.skills
+        experience_objects = []
+        
+        for exp_data in fixed_experiences:
+            try:
+                exp_obj = Experiences(**exp_data)
+                experience_objects.append(exp_obj)
+            except ValidationError:
+                # If validation fails, use original experience
+                for orig_exp in req.experiences:
+                    if orig_exp.id == exp_data.get("id"):
+                        experience_objects.append(orig_exp)
+                        break
+        
+        # Create the CVAnalysis object
+        try:
+            response_model = CVAnalysis(
+                experiences=experience_objects,
+                skills=skills_objects,
+                professionalSummary=function_args.get("professionalSummary", "Experienced professional with strong skills matching the job requirements.")
+            )
+            
+            return response_model.model_dump()
+            
+        except ValidationError as e:
+            logger.error(f"Manual response creation failed: {str(e)}")
+            return AIService.create_fallback_response(req)
+
     @staticmethod
     def create_fallback_response(req: CVAnalysisRequest) -> Dict[str, Any]:
         """Create a fallback response when AI fails"""
-        logger.warning("Using fallback response due to AI processing errors")
-        return {
-            "experiences": [exp.dict() for exp in req.experiences],
-            "skills": [skill.name for skill in req.skills],  # Extract skill names
-            "professionalSummary": "Fallback: Experienced professional with relevant skills."
-        }
+        utc_time = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+        user_login = "praiseunite"
+        logger.warning(f"Using fallback response due to AI processing errors at {utc_time} UTC for user: {user_login}")
+        
+        try:
+            # Create a CVAnalysis model with the original data
+            response_model = CVAnalysis(
+                experiences=req.experiences,
+                skills=req.skills,
+                professionalSummary="Experienced professional with relevant skills matching the job requirements."
+            )
+            
+            return response_model.model_dump()
+            
+        except ValidationError as e:
+            logger.error(f"Fallback response creation failed: {str(e)}")
+            
+            # Last resort direct dictionary return
+            return {
+                "experiences": [exp.model_dump() for exp in req.experiences],
+                "skills": [skill.model_dump() for skill in req.skills],
+                "professionalSummary": "Experienced professional with relevant skills matching the job requirements."
+            }

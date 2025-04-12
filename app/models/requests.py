@@ -28,5 +28,5 @@ class CVAnalysisRequest(BaseModel):
 
 class CVAnalysis(BaseModel):
     experiences: List[Experiences]  # Updated to match the structure
-    skills: List[str]
+    skills: List[Skill]
     professionalSummary: str
