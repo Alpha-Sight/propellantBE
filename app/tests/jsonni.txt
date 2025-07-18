@@ -3,3 +3,97 @@
   "jobDescription": "We are looking for a Senior Backend Developer with strong Python experience to join our team. The ideal candidate will have expertise in building scalable RESTful APIs, working with containerized applications, and implementing cloud solutions.\n\nResponsibilities:\n- Design, develop and maintain high-performance backend services and APIs\n- Work closely with frontend developers to integrate APIs\n- Implement authentication and authorization mechanisms\n- Optimize application performance and ensure high availability\n- Write clean, maintainable code with comprehensive test coverage\n- Participate in code reviews and provide constructive feedback\n\nRequirements:\n- 5+ years of professional experience with Python\n- Strong experience with FastAPI or similar frameworks (Flask, Django)\n- Proficiency in database design and optimization (SQL and NoSQL)\n- Experience with Docker, Kubernetes, and CI/CD pipelines\n- Understanding of cloud services (AWS, GCP, or Azure)\n- Knowledge of security best practices\n- Excellent problem-solving and communication skills",
   "cv_text": "PROFESSIONAL SUMMARY\nPython developer with 6 years of experience building web applications and APIs. Skilled in designing database schemas and implementing efficient algorithms. Strong background in developing RESTful services and integrating third-party APIs.\n\nWORK EXPERIENCE\n\nBackend Developer\nTech Solutions Inc.\nJanuary 2020 - Present\n- Developed and maintained Python-based web services using Flask\n- Created database schemas and wrote optimized queries\n- Implemented OAuth2 authentication for API security\n- Collaborated with frontend team to integrate APIs\n- Set up CI/CD pipelines using Jenkins\n\nJunior Developer\nWebApps Co.\nMarch 2017 - December 2019\n- Assisted in building RESTful APIs using Django\n- Wrote unit tests to ensure code quality\n- Performed bug fixes and implemented new features\n- Participated in daily stand-ups and sprint planning\n\nEDUCATION\nBachelor of Science in Computer Science\nTech University\n2013 - 2017\n\nSKILLS\n- Programming Languages: Python, JavaScript\n- Frameworks: Flask, Django\n- Databases: PostgreSQL, MongoDB\n- Tools: Git, Docker\n- Other: RESTful APIs, Unit Testing, Agile Development"
 }
+
+1. Get contract CONTRACT_ADDRESS
+
+2. Register a user on the platform.
+
+3. Create giftcard for a user.
+
+4. Claim giftcard
+
+5. Register the user to claim giftcard if not in the system.
+
+xion1wndmwgn9nj8gqae40d9gyh7tg45le9kre2wd6v
+
+
+xion1asu4fdwnkjse2sj3c0rte0267kp55u4aqflkt9
+
+befre we start, send toekn to the wallet first. 
+xiond tx bank send xion1wndmwgn9nj8gqae40d9gyh7tg45le9kre2wd6v xion1asu4fdwnkjse2sj3c0rte0267kp55u4aqflkt9 100000uxion --chain-id xion-testnet-2 --node https://rpc.xion-testnet-2.burnt.com:443 --gas auto --gas-adjustment 1.5 --gas-prices 0.025uxion --output json --yes
+
+verify Funds
+xiond query bank balances xion1asu4fdwnkjse2sj3c0rte0267kp55u4aqflkt9 --node https://rpc.xion-testnet-2.burnt.com:443
+
+1. Add Funds to Create Your Account
+xiond tx wasm execute xion1x442jpu7q2qjnpq7nt8lqtxwqj6h63fjwu54thagrhg0mcc5jseqdfhw6f '{"add_funds":{}}' \
+  --from unitedP \
+  --amount 10000uxion \
+  --gas auto \
+  --gas-adjustment 1.3 \
+  --gas-prices 0.0025uxion \
+  --node https://rpc.xion-testnet-2.burnt.com:443 \
+  --chain-id xion-testnet-2 \
+  -y
+
+  2. Verify Your User Was Created
+  xiond query wasm contract-state smart xion1x442jpu7q2qjnpq7nt8lqtxwqj6h63fjwu54thagrhg0mcc5jseqdfhw6f '{"get_user":{"address":"xion1asu4fdwnkjse2sj3c0rte0267kp55u4aqflkt9"}}' \
+  --node https://rpc.xion-testnet-2.burnt.com:443
+
+
+  3. Create a Gift Card
+
+  xiond tx wasm execute xion1x442jpu7q2qjnpq7nt8lqtxwqj6h63fjwu54thagrhg0mcc5jseqdfhw6f '{"create_card":{"card_name":"April Gift","amount":"5000","duration_days":30,"recipient_email":"uniteP@example.com"}}' \
+  --from xion1wndmwgn9nj8gqae40d9gyh7tg45le9kre2wd6v \
+  --gas auto \
+  --gas-adjustment 1.3 \
+  --gas-prices 0.0025uxion \
+  --node https://rpc.xion-testnet-2.burnt.com:443 \
+  --chain-id xion-testnet-2 \
+  -y
+
+
+4. Verify Your Gift Card Was Created
+xiond query wasm contract-state smart xion1x442jpu7q2qjnpq7nt8lqtxwqj6h63fjwu54thagrhg0mcc5jseqdfhw6f '{"get_user_cards":{"address":"xion1wndmwgn9nj8gqae40d9gyh7tg45le9kre2wd6v"}}' \
+  --node https://rpc.xion-testnet-2.burnt.com:443
+
+
+5. Register Your Email
+xiond tx wasm execute xion1x442jpu7q2qjnpq7nt8lqtxwqj6h63fjwu54thagrhg0mcc5jseqdfhw6f '{"register_email":{"email":"praiseunite@example.com"}}' \
+  --from praiseunite \
+  --gas auto \
+  --gas-adjustment 1.3 \
+  --gas-prices 0.0025uxion \
+  --node https://rpc.xion-testnet-2.burnt.com:443 \
+  --chain-id xion-testnet-2 \
+  -y
+
+
+  6. Register Recipient Email (using recipient's wallet)
+xiond tx wasm execute xion1x442jpu7q2qjnpq7nt8lqtxwqj6h63fjwu54thagrhg0mcc5jseqdfhw6f '{"register_email":{"email":"uniteP@example.com"}}' \
+  --from xion1asu4fdwnkjse2sj3c0rte0267kp55u4aqflkt9 \
+  --gas auto \
+  --gas-adjustment 1.3 \
+  --gas-prices 0.0025uxion \
+  --node https://rpc.xion-testnet-2.burnt.com:443 \
+  --chain-id xion-testnet-2 \
+  -y
+
+  7. Verify Recipient Registration
+xiond query wasm contract-state smart xion1x442jpu7q2qjnpq7nt8lqtxwqj6h63fjwu54thagrhg0mcc5jseqdfhw6f '{"get_user_by_email":{"email":"uniteP@example.com"}}' \
+  --node https://rpc.xion-testnet-2.burnt.com:443
+
+
+  8. Claim the Gift Card (as recipient)
+xiond tx wasm execute xion1x442jpu7q2qjnpq7nt8lqtxwqj6h63fjwu54thagrhg0mcc5jseqdfhw6f '{"claim_cards":{"email":"uniteP@example.com"}}' \
+  --from xion1asu4fdwnkjse2sj3c0rte0267kp55u4aqflkt9 \
+  --gas auto \
+  --gas-adjustment 1.3 \
+  --gas-prices 0.0025uxion \
+  --node https://rpc.xion-testnet-2.burnt.com:443 \
+  --chain-id xion-testnet-2 \
+  -y
+
+  9. Verify the Gift Card Was Claimed
+xiond query wasm contract-state smart xion1x442jpu7q2qjnpq7nt8lqtxwqj6h63fjwu54thagrhg0mcc5jseqdfhw6f '{"check_gift_cards":{"email":"uniteP@example.com"}}' \
+  --node https://rpc.xion-testnet-2.burnt.com:443

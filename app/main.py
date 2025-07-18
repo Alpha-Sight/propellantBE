@@ -10,14 +10,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = FastAPI(
-    title="Simple FastAPI Project",
-    description="A simple project to accept and return JSON data",
+    title="Propellant CV AI Assistant",
+    description="AI-powered CV optimization with blockchain authentication",
     version="1.0.0"
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.getenv("CORS_ORIGINS", "").split(","),
+    allow_origins=os.getenv("CORS_ORIGINS", "*").split(","),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -45,5 +45,3 @@ if __name__ == "__main__":
         port=8000,
         reload=True
     )
-    
-    

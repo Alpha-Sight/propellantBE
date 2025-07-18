@@ -137,18 +137,65 @@ class AIService:
             logger.error(f"Error communicating with UnifyAI: {str(e)}")
             return cls.create_fallback_response(req)
     
+    
     @staticmethod
     def transform_ai_response(ai_response: Dict[str, Any]) -> Dict[str, Any]:
         """Transform AI response to match our model structure"""
         transformed = {}
         
-        # Check both field names correctly
+        # Process experiences field
         if "experiences" in ai_response:
-            transformed["experiences"] = ai_response["experiences"]
-        elif "work_experience" in ai_response:  # Changed from "experiences" to "work_experience"
-            transformed["experiences"] = ai_response["work_experience"]
+            experiences = ai_response["experiences"]
+            transformed_experiences = []
+            
+            for exp in experiences:
+                exp_copy = dict(exp)
+                
+                # Handle period format conversion
+                if "period" in exp:
+                    period = exp["period"]
+                    if isinstance(period, str):
+                        # Convert string period to object format
+                        parts = period.split(" - ")
+                        start = parts[0].strip() if len(parts) > 0 else "Unknown"
+                        end = parts[1].strip() if len(parts) > 1 else "Present"
+                        exp_copy["period"] = {"start": start, "end": end}
+                    elif not isinstance(period, dict):
+                        # Handle any other non-dict format
+                        exp_copy["period"] = {"start": "Unknown", "end": "Present"}
+                else:
+                    # Default period if missing
+                    exp_copy["period"] = {"start": "Unknown", "end": "Present"}
+                    
+                transformed_experiences.append(exp_copy)
+                
+            transformed["experiences"] = transformed_experiences
+        elif "work_experience" in ai_response:
+            # Similar handling for work_experience
+            experiences = ai_response["work_experience"]
+            transformed_experiences = []
+            
+            for exp in experiences:
+                exp_copy = dict(exp)
+                
+                # Handle period format conversion
+                if "period" in exp:
+                    period = exp["period"]
+                    if isinstance(period, str):
+                        parts = period.split(" - ")
+                        start = parts[0].strip() if len(parts) > 0 else "Unknown"
+                        end = parts[1].strip() if len(parts) > 1 else "Present"
+                        exp_copy["period"] = {"start": start, "end": end}
+                    elif not isinstance(period, dict):
+                        exp_copy["period"] = {"start": "Unknown", "end": "Present"}
+                else:
+                    exp_copy["period"] = {"start": "Unknown", "end": "Present"}
+                    
+                transformed_experiences.append(exp_copy)
+                
+            transformed["experiences"] = transformed_experiences
         else:
-            # Default empty experiences array
+            # Empty experiences array as fallback
             transformed["experiences"] = []
         
         # Copy skills directly
@@ -170,17 +217,63 @@ class AIService:
         """Manually construct a valid response structure from AI data"""
         response = {}
         
-        # Check both field names correctly
+        # Handle experiences
         if "experiences" in ai_response:
-            response["experiences"] = ai_response["experiences"]
-        elif "work_experience" in ai_response:  # Changed from "experiences" to "work_experience"
-            response["experiences"] = ai_response["work_experience"]
+            experiences = ai_response["experiences"]
+            transformed_experiences = []
+            
+            for exp in experiences:
+                exp_copy = dict(exp)
+                
+                # Handle period format conversion
+                if "period" in exp:
+                    period = exp["period"]
+                    if isinstance(period, str):
+                        parts = period.split(" - ")
+                        start = parts[0].strip() if len(parts) > 0 else "Unknown"
+                        end = parts[1].strip() if len(parts) > 1 else "Present"
+                        exp_copy["period"] = {"start": start, "end": end}
+                    elif not isinstance(period, dict):
+                        # Handle any other non-dict format
+                        exp_copy["period"] = {"start": "Unknown", "end": "Present"}
+                else:
+                    # Default period if missing
+                    exp_copy["period"] = {"start": "Unknown", "end": "Present"}
+                    
+                transformed_experiences.append(exp_copy)
+                
+            response["experiences"] = transformed_experiences
+        elif "work_experience" in ai_response:
+            # Similar handling for work_experience
+            experiences = ai_response["work_experience"]
+            transformed_experiences = []
+            
+            for exp in experiences:
+                exp_copy = dict(exp)
+                
+                # Handle period format conversion
+                if "period" in exp:
+                    period = exp["period"]
+                    if isinstance(period, str):
+                        parts = period.split(" - ")
+                        start = parts[0].strip() if len(parts) > 0 else "Unknown"
+                        end = parts[1].strip() if len(parts) > 1 else "Present"
+                        exp_copy["period"] = {"start": start, "end": end}
+                    elif not isinstance(period, dict):
+                        exp_copy["period"] = {"start": "Unknown", "end": "Present"}
+                else:
+                    exp_copy["period"] = {"start": "Unknown", "end": "Present"}
+                    
+                transformed_experiences.append(exp_copy)
+                
+            response["experiences"] = transformed_experiences
         else:
             # Create default experiences from CV text
             lines = req.cv_text.split("\n")
             company = "Unknown Company"
-            job_title = "Unknown Role"
-            period = "Unknown Period"
+            job_title = "Unknown Role" 
+            start_date = "Unknown"
+            end_date = "Present"
             location = "Unknown Location"
             duties = ["Responsibility extracted from CV"]
             
@@ -188,13 +281,19 @@ class AIService:
                 if "Developer" in line or "Engineer" in line:
                     job_title = line.strip()
                 elif "20" in line and "-" in line:
-                    period = line.strip()
-                
+                    parts = line.strip().split("-")
+                    if len(parts) >= 2:
+                        start_date = parts[0].strip()
+                        end_date = parts[1].strip()
+            
             response["experiences"] = [
                 {
                     "company": company,
                     "jobTitle": job_title,
-                    "period": period,
+                    "period": {
+                        "start": start_date,
+                        "end": end_date
+                    },
                     "location": location,
                     "duties": duties
                 }
@@ -230,14 +329,19 @@ class AIService:
         lines = req.cv_text.split("\n")
         company = "Tech Company"
         job_title = "Developer"
-        period = "2020 - Present"
+        start_date = "2020"
+        end_date = "Present"
         location = "Remote"
         
         for line in lines:
             if "Developer" in line or "Engineer" in line:
                 job_title = line.strip()
             elif "20" in line and "-" in line:
-                period = line.strip()
+                # Try to parse period from the line
+                parts = line.strip().split("-")
+                if len(parts) >= 2:
+                    start_date = parts[0].strip()
+                    end_date = parts[1].strip()
             elif "Inc" in line or "LLC" in line or "Ltd" in line:
                 company = line.strip()
         
@@ -246,7 +350,10 @@ class AIService:
                 {
                     "company": company,
                     "jobTitle": job_title,
-                    "period": period,
+                    "period": {
+                        "start": start_date,
+                        "end": end_date
+                    },
                     "location": location,
                     "duties": [
                         "Developed and maintained software applications",

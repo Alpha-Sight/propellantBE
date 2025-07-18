@@ -1,28 +1,48 @@
 """
-Main application runner for CV AI Assistant
+Main FastAPI application
 """
-# Simple file interceptor for contract addresses
-import builtins
-from io import StringIO
-
-# Store original open function
-original_open = builtins.open
-
-# Create straightforward interceptor
-def safe_open(file, *args, **kwargs):
-    """Prevent file not found errors with contract addresses"""
-    if isinstance(file, str) and file.startswith("xion1"):
-        print(f"🛡️ Prevented file access to: {file}")
-        return StringIO("")
-    return original_open(file, *args, **kwargs)
-
-# Apply the patch
-builtins.open = safe_open
-
 # Standard imports
-import uvicorn
+import os
+from fastapi import FastAPI, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from app.routers import ai
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+app = FastAPI(
+    title="Propellant CV AI Assistant",
+    description="AI-powered CV optimization with blockchain authentication",
+    version="1.0.0"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=os.getenv("CORS_ORIGINS", "*").split(","),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(ai.router, prefix="/api")
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for monitoring"""
+    return {"status": "ok"}
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"detail": f"Validation error: {str(exc)}"}
+    )
 
 if __name__ == "__main__":
+    import uvicorn
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",

@@ -1,6 +1,3 @@
-"""
-XION client implementation based on working CLI command
-"""
 import os
 import logging
 import json
@@ -20,7 +17,7 @@ class XionCLIClient:
     
     def __init__(self):
         # Get configuration from environment
-        self.rpc_url = os.getenv("XION_RPC_URL", "https://rpc.xion-testnet-2.burnt.com:443")
+        self.rpc_url = os.getenv("XION_RPC_URL", "https://xionwallet-8inr.onrender.com")
         # Remove protocol prefix if needed
         if self.rpc_url.startswith("rest+"):
             self.rpc_url = self.rpc_url[5:]

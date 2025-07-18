@@ -59,14 +59,13 @@ class XionContractService:
         # Initialize client and wallet
         self.client = LedgerClient(self.cfg)
         
-        # Create wallet with XION prefix parameter - just like in the Node.js implementation
+        # Create wallet with XION prefix parameter
         try:
             self.wallet = LocalWallet.from_mnemonic(self.mnemonic, prefix="xion")
             self.backend_address = self.wallet.address()
             
             logger.info(f"Initialized with backend address: {self.backend_address}")
         except TypeError as e:
-            # If prefix parameter doesn't work in your version of the library
             logger.error(f"Error creating wallet with prefix parameter: {str(e)}")
             logger.info("Falling back to default wallet creation")
             
@@ -155,7 +154,6 @@ class XionContractService:
                 return True
             return False
     
-    # The rest of your methods remain unchanged
     async def deduct_cv_credit(self, user_address: str, secure_token: str) -> Dict[str, Any]:
         """
         Execute the deduct_cv_credit function on the contract
